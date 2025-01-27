@@ -1,11 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
-import { saveAs } from 'file-saver';
-import Docxtemplater from 'docxtemplater';
-import PizZip from 'pizzip';
+import { useState, useEffect } from 'react';
 
 interface Item {
   description: string;

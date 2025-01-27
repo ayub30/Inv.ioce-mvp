@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     
     // Parse and validate numeric values
     const rawItems = JSON.parse(formData.get('items') as string || '[]');
-    const items: InvoiceItem[] = rawItems.map((item: any) => {
+    const items: InvoiceItem[] = rawItems.map((item: InvoiceItem) => {
       const quantity = Number(item.quantity) || 0;
       const unitPrice = Number(item.unitPrice) || 0;
       return {
@@ -61,7 +61,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     const primaryColor: RGB = [0.12, 0.36, 0.72]; // Royal Blue
     const secondaryColor: RGB = [0.9, 0.9, 0.9]; // Light Gray
     const textColor: RGB = [0.2, 0.2, 0.2]; // Dark Gray
-    const accentColor: RGB = [0.08, 0.27, 0.54]; // Darker Blue
 
     // Helper functions
     const addText = (text: string, x: number, y: number, options: { 

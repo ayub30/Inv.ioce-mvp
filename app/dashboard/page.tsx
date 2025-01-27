@@ -1,5 +1,4 @@
 import Form from "../ui/form"
-import SideNav from "../ui/sidenav";
 
 export default function Dashboard() {
     return (
