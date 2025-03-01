@@ -24,7 +24,8 @@ interface FormData {
   email: string;
   toName: string;
   toAddress: string;
-  toCity: string;
+  toTelephone: string;
+  toEmail: string;
   toPostcode: string;
   message: string;
   payInfo: string;
@@ -54,7 +55,8 @@ export default function Form() {
     email: '',
     toName: '',
     toAddress: '',
-    toCity: '',
+    toTelephone: '',
+    toEmail: '',
     toPostcode: '',
     message: '',
     payInfo: '',
@@ -168,7 +170,8 @@ export default function Form() {
       formDataToSend.append('email', formData.email || '');
       formDataToSend.append('toName', formData.toName || '');
       formDataToSend.append('toAddress', formData.toAddress || '');
-      formDataToSend.append('toCity', formData.toCity || '');
+      formDataToSend.append('toTelephone', formData.toTelephone || '');
+      formDataToSend.append('toEmail', formData.toEmail || '');
       formDataToSend.append('toPostcode', formData.toPostcode || '');
       formDataToSend.append('message', formData.message || '');
       formDataToSend.append('payInfo', formData.payInfo || '');
@@ -178,6 +181,7 @@ export default function Form() {
       formDataToSend.append('subtotal', (formData.subtotal || 0).toString());
       formDataToSend.append('tax', (formData.tax || 0).toString());
       formDataToSend.append('discount', (formData.discount || 0).toString());
+      formDataToSend.append('date', formData.date || '');
 
       const response = await fetch('/api/convert', {
         method: 'POST',
@@ -238,7 +242,7 @@ export default function Form() {
 
       <form onSubmit={handleSubmit} className="space-y-6 text-base-content">
         {/* Type Selection and Basic Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 grid-rows-1 md:grid-cols-2 gap-4">
           <div>
             <label className="label">
               <span className="label-text text-base-content">Type</span>
@@ -253,6 +257,18 @@ export default function Form() {
               <option value="Quote">Quote</option>
               <option value="Receipt">Receipt</option>
             </select>
+          </div>
+          <div>
+          <label className="label">
+              <span className="label-text text-base-content">Date</span>
+            </label>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              onChange={handleInputChange}
+              className="input input-bordered w-full text-base-content"
+            />
           </div>
         </div>
 
@@ -324,20 +340,29 @@ export default function Form() {
             />
             <input
               type="text"
-              name="toCity"
-              placeholder="City"
-              value={formData.toCity}
-              onChange={handleInputChange}
-              className="input input-bordered w-full text-base-content"
-            />
-            <input
-              type="text"
               name="toPostcode"
               placeholder="Postcode"
               value={formData.toPostcode}
               onChange={handleInputChange}
               className="input input-bordered w-full text-base-content"
             />
+            <input
+              type="tel"
+              name="toTelephone"
+              placeholder="Telephone"
+              value={formData.toTelephone}
+              onChange={handleInputChange}
+              className="input input-bordered w-full text-base-content"
+            />
+            <input
+              type="email"
+              name="toEmail"
+              placeholder="Email"
+              value={formData.toEmail}
+              onChange={handleInputChange}
+              className="input input-bordered w-full text-base-content"
+            />
+            
           </div>
         </div>
 
@@ -351,7 +376,7 @@ export default function Form() {
             <div className="col-span-2">Quantity</div>
             <div className="col-span-2">Unit Price</div>
             <div className="col-span-2 flex items-center gap-2">
-              Total
+              Currency
               <select
                 name="currency"
                 value={formData.currency}

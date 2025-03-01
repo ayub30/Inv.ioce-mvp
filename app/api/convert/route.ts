@@ -12,7 +12,6 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const formData = await request.formData();
     
-    // Parse form data with defaults
     const type = formData.get('type') as string || 'Invoice';
     const companyName = formData.get('companyName') as string || '';
     const address = formData.get('address') as string || '';
@@ -27,8 +26,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const payInfo = formData.get('payInfo') as string || '';
     const terms = formData.get('terms') as string || '';
     const currency = formData.get('currency') as string || '$';
+    const date = formData.get('date') as string || new Date().toLocaleDateString();
+
     
-    // Parse and validate numeric values
+    
     const rawItems = JSON.parse(formData.get('items') as string || '[]');
     const items: InvoiceItem[] = rawItems.map((item: InvoiceItem) => {
       const quantity = Number(item.quantity) || 0;
@@ -141,7 +142,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
     // Add date
-    addText(`Date: ${new Date().toLocaleDateString()}`, width - 200, height - 70, { 
+    addText(`Date: ${date}`, width - 200, height - 70, { 
       size: 12,
       color: [1, 1, 1] as RGB,
       align: 'right',
