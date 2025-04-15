@@ -138,6 +138,39 @@ export default function Form() {
     }
   };
 
+  // Utility function to wrap text into chunks of a specified max length
+  const wrapText = (text: string, maxLength: number = 50): string[] => {
+    if (!text) return [''];
+    
+    const result: string[] = [];
+    let remainingText = text;
+    
+    while (remainingText.length > 0) {
+      // Take the next chunk (up to maxLength)
+      if (remainingText.length <= maxLength) {
+        // If the remaining text fits in one chunk, add it and break
+        result.push(remainingText);
+        break;
+      } else {
+        // Look for a natural breaking point (space) near the maxLength
+        let breakPoint = remainingText.lastIndexOf(' ', maxLength);
+        
+        if (breakPoint === -1 || breakPoint < maxLength / 2) {
+          // If no good breaking point found, just cut at maxLength
+          breakPoint = maxLength;
+        }
+        
+        // Add the chunk to our result
+        result.push(remainingText.substring(0, breakPoint).trim());
+        
+        // Update the remaining text
+        remainingText = remainingText.substring(breakPoint).trim();
+      }
+    }
+    
+    return result;
+  };
+
   useEffect(() => {
     // Load the template file when component mounts
     fetch('/BusinessInvoiceBasic.docx')
@@ -186,9 +219,16 @@ export default function Form() {
       formDataToSend.append('toTelephone', formData.toTelephone || '');
       formDataToSend.append('toEmail', formData.toEmail || '');
       formDataToSend.append('toPostcode', formData.toPostcode || '');
-      formDataToSend.append('message', formData.message || '');
-      formDataToSend.append('payInfo', formData.payInfo || '');
-      formDataToSend.append('terms', formData.terms || '');
+      
+      // Pre-process all text fields into wrapped lines
+      const wrappedMessage = wrapText(formData.message || '', 50);
+      const wrappedPayInfo = wrapText(formData.payInfo || '', 50);
+      const wrappedTerms = wrapText(formData.terms || '', 50);
+      
+      formDataToSend.append('message', JSON.stringify(wrappedMessage));
+      formDataToSend.append('payInfo', JSON.stringify(wrappedPayInfo));
+      formDataToSend.append('terms', JSON.stringify(wrappedTerms));
+      
       formDataToSend.append('currency', formData.currency || '$');
       formDataToSend.append('billingMode', formData.billingMode || 'unit');
       formDataToSend.append('items', JSON.stringify(formData.items || []));

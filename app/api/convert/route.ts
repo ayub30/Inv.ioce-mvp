@@ -22,9 +22,29 @@ export async function POST(request: Request): Promise<NextResponse> {
     const toAddress = formData.get('toAddress') as string || '';
     const toCity = formData.get('toCity') as string || '';
     const toPostcode = formData.get('toPostcode') as string || '';
-    const message = formData.get('message') as string || '';
-    const payInfo = formData.get('payInfo') as string || '';
-    const terms = formData.get('terms') as string || '';
+    
+    // Parse the text fields from JSON stringified arrays
+    let messageLines: string[] = [];
+    let payInfoLines: string[] = [];
+    let termsLines: string[] = [];
+    
+    try {
+      const messageRaw = formData.get('message') as string || '[""]';
+      messageLines = JSON.parse(messageRaw);
+      
+      const payInfoRaw = formData.get('payInfo') as string || '[""]';
+      payInfoLines = JSON.parse(payInfoRaw);
+      
+      const termsRaw = formData.get('terms') as string || '[""]';
+      termsLines = JSON.parse(termsRaw);
+    } catch (error) {
+      console.error('Error parsing text fields:', error);
+      // Fallback to empty arrays if parsing fails
+      messageLines = [];
+      payInfoLines = [];
+      termsLines = [];
+    }
+    
     const currency = formData.get('currency') as string || '$';
     const date = formData.get('date') as string || new Date().toLocaleDateString();
     const billingMode = formData.get('billingMode') as string || 'unit'; // Get billing mode
@@ -53,8 +73,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.276, 841.890]); // A4 size
-    
-    // Use StandardFonts with Unicode support
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const { width, height } = page.getSize();
@@ -64,18 +82,6 @@ export async function POST(request: Request): Promise<NextResponse> {
     const primaryColor: RGB = [0.12, 0.36, 0.72]; // Royal Blue
     const secondaryColor: RGB = [0.9, 0.9, 0.9]; // Light Gray
     const textColor: RGB = [0.2, 0.2, 0.2]; // Dark Gray
-
-    // Helper function to sanitize text for PDF
-    const sanitizeText = (text: string): string => {
-      if (!text) return '';
-      
-      // Replace problematic characters with safe alternatives
-      return text
-        .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII characters
-        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
-        .replace(/\*/g, '•') // Replace asterisks with bullet points
-        .replace(/[^\w\s.,;:!?()[\]{}&@#$%^+=\-'"`~/\\]/g, ''); // Keep only safe characters
-    };
 
     // Helper functions
     const addText = (text: string, x: number, y: number, options: { 
@@ -93,9 +99,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         width: textWidth
       } = options;
 
-      // Sanitize the text before adding to PDF
-      const safeText = sanitizeText(text);
-      
+      // Basic sanitization to prevent encoding issues
+      const safeText = text
+        .replace(/\r/g, '') // Remove carriage returns (0x00d)
+        .replace(/\n/g, ' ') // Replace newlines with spaces
+        .replace(/\t/g, ' '); // Replace tabs with spaces
+
       let xPos = x;
       if (align === 'right' && textWidth) {
         const textSize = font.widthOfTextAtSize(safeText, size);
@@ -115,15 +124,6 @@ export async function POST(request: Request): Promise<NextResponse> {
         });
       } catch (error) {
         console.error('Error drawing text:', error);
-        // Fallback to a simpler version of the text if there's an error
-        const fallbackText = safeText.replace(/[^a-zA-Z0-9 .,]/g, '');
-        page.drawText(fallbackText, { 
-          x: xPos, 
-          y, 
-          size, 
-          font,
-          color: rgb(color[0], color[1], color[2])
-        });
       }
     };
 
@@ -348,15 +348,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
     // Add additional information
-    if ((type === 'Invoice' && (message || payInfo)) || (type === 'Quote' && terms)) {
+    if ((type === 'Invoice' && (messageLines.length > 0 || payInfoLines.length > 0)) || (type === 'Quote' && termsLines.length > 0)) {
       // Move message after the totals section
       // First handle payment info if present
       if (type === 'Invoice') {
         // Start with a lower position for additional information
         // This positions it below the totals section
-        yPos -= 90; // Add more space after the totals
+        yPos -= -100; // Add more space after the totals
         
-        if (message) {
+        if (messageLines.length > 0) {
           addText('Message', 50, yPos, { 
             font: helveticaBold,
             size: 12,
@@ -367,72 +367,22 @@ export async function POST(request: Request): Promise<NextResponse> {
             color: primaryColor
           });
           
-          // Create a text box for the message
-          const messageBoxWidth = 200; // Match the width of FROM and TO boxes
-          const messageStartY = yPos - 30;
-          const fontSize = 10;
+          // Render each line of the message
+          let currentY = yPos - 25;
           const lineHeight = 14;
-          const maxWidth = messageBoxWidth - 20; // Padding on both sides
           
-          // Calculate the height needed for the text
-          const words = message.split(' ');
-          let currentLine = '';
-          let lineCount = 1; // Start with at least one line
-          
-          // Count how many lines we'll need
-          for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            const testLine = currentLine ? `${currentLine} ${word}` : word;
-            const testWidth = helvetica.widthOfTextAtSize(testLine, fontSize);
-            
-            if (testWidth > maxWidth && currentLine !== '') {
-              currentLine = word;
-              lineCount++;
-            } else {
-              currentLine = testLine;
-            }
-          }
-          
-          // Calculate the required height for the text box
-          const messageTextHeight = lineCount * lineHeight + 20; // Add padding
-          
-          // Draw the text box rectangle
-          drawRect(50, messageStartY, messageBoxWidth, messageTextHeight, {
-            fill: [0.97, 0.97, 0.97] as RGB,
-            stroke: secondaryColor,
-            strokeWidth: 1
-          });
-          
-          // Add the message text inside the box with word wrapping
-          currentLine = '';
-          let currentY = messageStartY + messageTextHeight - 15; // Start from top with padding
-          
-          // Process each word to create wrapped text
-          for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            const testLine = currentLine ? `${currentLine} ${word}` : word;
-            const testWidth = helvetica.widthOfTextAtSize(testLine, fontSize);
-            
-            if (testWidth > maxWidth && currentLine !== '') {
-              // Add the current line and move to the next line
-              addText(currentLine, 60, currentY, { size: fontSize });
-              currentLine = word;
+          for (const line of messageLines) {
+            if (line.trim()) { // Only add non-empty lines
+              addText(line, 50, currentY);
               currentY -= lineHeight;
-            } else {
-              currentLine = testLine;
             }
           }
           
-          // Add the last line
-          if (currentLine) {
-            addText(currentLine, 60, currentY, { size: fontSize });
-          }
-          
-          // Update yPos to account for the message box height
-          yPos -= messageTextHeight + 20; // Add some extra space after the message box
+          // Update yPos for the next element
+          yPos = currentY - 10;
         }
 
-        if (payInfo) {
+        if (payInfoLines.length > 0) {
           addText('Payment Terms', 50, yPos, { 
             font: helveticaBold,
             size: 12,
@@ -442,9 +392,22 @@ export async function POST(request: Request): Promise<NextResponse> {
             width: 1,
             color: primaryColor
           });
-          addText(payInfo, 50, yPos - 25);
+          
+          // Render each line of the payment info
+          let currentY = yPos - 25;
+          const lineHeight = 14;
+          
+          for (const line of payInfoLines) {
+            if (line.trim()) { // Only add non-empty lines
+              addText(line, 50, currentY);
+              currentY -= lineHeight;
+            }
+          }
+          
+          // Update yPos for the next element
+          yPos = currentY - 10;
         }
-      } else if (type === 'Quote' && terms) {
+      } else if (type === 'Quote' && termsLines.length > 0) {
         yPos -= 60; // Add more space after the totals
         addText('Terms & Conditions', 50, yPos, { 
           font: helveticaBold,
@@ -455,7 +418,20 @@ export async function POST(request: Request): Promise<NextResponse> {
           width: 1,
           color: primaryColor
         });
-        addText(terms, 50, yPos - 25);
+        
+        // Render each line of the terms
+        let currentY = yPos - 25;
+        const lineHeight = 14;
+        
+        for (const line of termsLines) {
+          if (line.trim()) { // Only add non-empty lines
+            addText(line, 50, currentY);
+            currentY -= lineHeight;
+          }
+        }
+        
+        // Update yPos for the next element
+        yPos = currentY - 10;
       }
     }
 
