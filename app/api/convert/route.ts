@@ -27,9 +27,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     const terms = formData.get('terms') as string || '';
     const currency = formData.get('currency') as string || '$';
     const date = formData.get('date') as string || new Date().toLocaleDateString();
-
+    const billingMode = formData.get('billingMode') as string || 'unit'; // Get billing mode
     
-    
+    // Parse items from form data
     const rawItems = JSON.parse(formData.get('items') as string || '[]');
     const items: InvoiceItem[] = rawItems.map((item: InvoiceItem) => {
       const quantity = Number(item.quantity) || 0;
@@ -196,22 +196,29 @@ export async function POST(request: Request): Promise<NextResponse> {
       fill: primaryColor
     });
 
-    // Table headers
+    // Table headers - adjust based on billing mode
     addText('Description', startX, yPos, { 
       font: helveticaBold,
       color: [1, 1, 1] as RGB,
       size: 12
     });
-    addText('Quantity', startX + colWidth[0], yPos, { 
+    
+    // Use Hours or Quantity based on billing mode
+    const quantityLabel = billingMode === 'hourly' ? 'Hours' : 'Quantity';
+    addText(quantityLabel, startX + colWidth[0], yPos, { 
       font: helveticaBold,
       color: [1, 1, 1] as RGB,
       size: 12
     });
-    addText('Unit Price', startX + colWidth[0] + colWidth[1], yPos, { 
+    
+    // Use Hourly Rate or Unit Price based on billing mode
+    const priceLabel = billingMode === 'hourly' ? 'Hourly Rate' : 'Unit Price';
+    addText(priceLabel, startX + colWidth[0] + colWidth[1], yPos, { 
       font: helveticaBold,
       color: [1, 1, 1] as RGB,
       size: 12
     });
+    
     addText('Total', startX + colWidth[0] + colWidth[1] + colWidth[2], yPos, { 
       font: helveticaBold,
       color: [1, 1, 1] as RGB,
@@ -228,9 +235,17 @@ export async function POST(request: Request): Promise<NextResponse> {
         });
       }
 
+      // Item description
       addText(item.description, startX, yPos);
+      
+      // Quantity or Hours based on billing mode
       addText(item.quantity.toString(), startX + colWidth[0], yPos);
-      addText(`${currency}${item.unitPrice.toFixed(2)}`, startX + colWidth[0] + colWidth[1], yPos);
+      
+      // Unit Price or Hourly Rate based on billing mode
+      const priceLabel = `${currency}${item.unitPrice.toFixed(2)}`;
+      addText(priceLabel, startX + colWidth[0] + colWidth[1], yPos);
+      
+      // Total remains the same
       addText(`${currency}${item.total.toFixed(2)}`, startX + colWidth[0] + colWidth[1] + colWidth[2], yPos);
       
       yPos -= lineHeight;
@@ -304,9 +319,13 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Add additional information
     if ((type === 'Invoice' && (message || payInfo)) || (type === 'Quote' && terms)) {
-      yPos -= lineHeight;
-      
+      // Move message after the totals section
+      // First handle payment info if present
       if (type === 'Invoice') {
+        // Start with a lower position for additional information
+        // This positions it below the totals section
+        yPos -= 90; // Add more space after the totals
+        
         if (message) {
           addText('Message', 50, yPos, { 
             font: helveticaBold,
@@ -317,8 +336,70 @@ export async function POST(request: Request): Promise<NextResponse> {
             width: 1,
             color: primaryColor
           });
-          addText(message, 50, yPos - 25);
-          yPos -= lineHeight * 2;
+          
+          // Create a text box for the message
+          const messageBoxWidth = 200; // Match the width of FROM and TO boxes
+          const messageStartY = yPos - 30;
+          const fontSize = 10;
+          const lineHeight = 14;
+          const maxWidth = messageBoxWidth - 20; // Padding on both sides
+          
+          // Calculate the height needed for the text
+          const words = message.split(' ');
+          let currentLine = '';
+          let lineCount = 1; // Start with at least one line
+          
+          // Count how many lines we'll need
+          for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const testWidth = helvetica.widthOfTextAtSize(testLine, fontSize);
+            
+            if (testWidth > maxWidth && currentLine !== '') {
+              currentLine = word;
+              lineCount++;
+            } else {
+              currentLine = testLine;
+            }
+          }
+          
+          // Calculate the required height for the text box
+          const messageTextHeight = lineCount * lineHeight + 20; // Add padding
+          
+          // Draw the text box rectangle
+          drawRect(50, messageStartY, messageBoxWidth, messageTextHeight, {
+            fill: [0.97, 0.97, 0.97] as RGB,
+            stroke: secondaryColor,
+            strokeWidth: 1
+          });
+          
+          // Add the message text inside the box with word wrapping
+          currentLine = '';
+          let currentY = messageStartY + messageTextHeight - 15; // Start from top with padding
+          
+          // Process each word to create wrapped text
+          for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const testLine = currentLine ? `${currentLine} ${word}` : word;
+            const testWidth = helvetica.widthOfTextAtSize(testLine, fontSize);
+            
+            if (testWidth > maxWidth && currentLine !== '') {
+              // Add the current line and move to the next line
+              addText(currentLine, 60, currentY, { size: fontSize });
+              currentLine = word;
+              currentY -= lineHeight;
+            } else {
+              currentLine = testLine;
+            }
+          }
+          
+          // Add the last line
+          if (currentLine) {
+            addText(currentLine, 60, currentY, { size: fontSize });
+          }
+          
+          // Update yPos to account for the message box height
+          yPos -= messageTextHeight + 20; // Add some extra space after the message box
         }
 
         if (payInfo) {
@@ -334,6 +415,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           addText(payInfo, 50, yPos - 25);
         }
       } else if (type === 'Quote' && terms) {
+        yPos -= 60; // Add more space after the totals
         addText('Terms & Conditions', 50, yPos, { 
           font: helveticaBold,
           size: 12,

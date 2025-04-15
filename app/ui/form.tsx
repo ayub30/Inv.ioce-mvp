@@ -31,6 +31,7 @@ interface FormData {
   payInfo: string;
   terms: string;
   currency: string;
+  billingMode: 'hourly' | 'unit';
   items: Item[];
   subtotal: number;
   tax: number;
@@ -62,6 +63,7 @@ export default function Form() {
     payInfo: '',
     terms: '',
     currency: '',
+    billingMode: 'unit',
     items: [],
     subtotal: 0,
     tax: 0,
@@ -90,10 +92,21 @@ export default function Form() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Special handling for billing mode changes
+    if (name === 'billingMode') {
+      // Ensure the value is cast to the correct type
+      const billingModeValue = value as 'hourly' | 'unit';
+      setFormData(prev => ({
+        ...prev,
+        billingMode: billingModeValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleItemChange = (index: number, field: keyof Item, value: string) => {
@@ -177,6 +190,7 @@ export default function Form() {
       formDataToSend.append('payInfo', formData.payInfo || '');
       formDataToSend.append('terms', formData.terms || '');
       formDataToSend.append('currency', formData.currency || '$');
+      formDataToSend.append('billingMode', formData.billingMode || 'unit');
       formDataToSend.append('items', JSON.stringify(formData.items || []));
       formDataToSend.append('subtotal', (formData.subtotal || 0).toString());
       formDataToSend.append('tax', (formData.tax || 0).toString());
@@ -370,13 +384,23 @@ export default function Form() {
         <div className="space-y-4">
           <h3 className="text-lg font-medium text-base-content">Items</h3>
           
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-4 font-semibold mb-2">
-            <div className="col-span-6">Description</div>
-            <div className="col-span-2">Quantity</div>
-            <div className="col-span-2">Unit Price</div>
-            <div className="col-span-2 flex items-center gap-2">
-              Currency
+          {/* Billing Mode and Currency Selection */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <label className="font-semibold">Billing Mode:</label>
+              <select
+                name="billingMode"
+                value={formData.billingMode}
+                onChange={handleInputChange}
+                className="select select-bordered select-sm"
+              >
+                <option value="unit">Unit Price</option>
+                <option value="hourly">Hourly Rate</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="font-semibold">Currency:</label>
               <select
                 name="currency"
                 value={formData.currency}
@@ -389,6 +413,18 @@ export default function Form() {
                 <option value="€">€</option>
               </select>
             </div>
+          </div>
+          
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-4 font-semibold mb-2">
+            <div className="col-span-6">Description</div>
+            <div className="col-span-2">
+              {formData.billingMode === 'hourly' ? 'Hours' : 'Quantity'}
+            </div>
+            <div className="col-span-2">
+              {formData.billingMode === 'hourly' ? 'Hourly Rate' : 'Unit Price'}
+            </div>
+            <div className="col-span-2">Total</div>
           </div>
 
           {/* Table Body */}
