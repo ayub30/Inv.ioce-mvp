@@ -53,6 +53,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Create PDF document
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage([595.276, 841.890]); // A4 size
+    
+    // Use StandardFonts with Unicode support
     const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const { width, height } = page.getSize();
@@ -62,6 +64,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     const primaryColor: RGB = [0.12, 0.36, 0.72]; // Royal Blue
     const secondaryColor: RGB = [0.9, 0.9, 0.9]; // Light Gray
     const textColor: RGB = [0.2, 0.2, 0.2]; // Dark Gray
+
+    // Helper function to sanitize text for PDF
+    const sanitizeText = (text: string): string => {
+      if (!text) return '';
+      
+      // Replace problematic characters with safe alternatives
+      return text
+        .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII characters
+        .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+        .replace(/\*/g, '•') // Replace asterisks with bullet points
+        .replace(/[^\w\s.,;:!?()[\]{}&@#$%^+=\-'"`~/\\]/g, ''); // Keep only safe characters
+    };
 
     // Helper functions
     const addText = (text: string, x: number, y: number, options: { 
@@ -79,22 +93,38 @@ export async function POST(request: Request): Promise<NextResponse> {
         width: textWidth
       } = options;
 
+      // Sanitize the text before adding to PDF
+      const safeText = sanitizeText(text);
+      
       let xPos = x;
       if (align === 'right' && textWidth) {
-        const textSize = font.widthOfTextAtSize(text, size);
+        const textSize = font.widthOfTextAtSize(safeText, size);
         xPos = x + textWidth - textSize;
       } else if (align === 'center' && textWidth) {
-        const textSize = font.widthOfTextAtSize(text, size);
+        const textSize = font.widthOfTextAtSize(safeText, size);
         xPos = x + (textWidth - textSize) / 2;
       }
 
-      page.drawText(text, { 
-        x: xPos, 
-        y, 
-        size, 
-        font,
-        color: rgb(color[0], color[1], color[2])
-      });
+      try {
+        page.drawText(safeText, { 
+          x: xPos, 
+          y, 
+          size, 
+          font,
+          color: rgb(color[0], color[1], color[2])
+        });
+      } catch (error) {
+        console.error('Error drawing text:', error);
+        // Fallback to a simpler version of the text if there's an error
+        const fallbackText = safeText.replace(/[^a-zA-Z0-9 .,]/g, '');
+        page.drawText(fallbackText, { 
+          x: xPos, 
+          y, 
+          size, 
+          font,
+          color: rgb(color[0], color[1], color[2])
+        });
+      }
     };
 
     const drawLine = (x1: number, y1: number, x2: number, y2: number, options: {
