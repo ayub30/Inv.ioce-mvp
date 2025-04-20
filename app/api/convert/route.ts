@@ -354,7 +354,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       if (type === 'Invoice') {
         // Start with a lower position for additional information
         // This positions it below the totals section
-        yPos -= -100; // Add more space after the totals
+        yPos -= -40; // Add more space after the totals
         
         if (messageLines.length > 0) {
           addText('Message', 50, yPos, { 
