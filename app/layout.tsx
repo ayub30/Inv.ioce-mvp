@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next"
 import { Outfit } from "next/font/google";
 import "./globals.css";
 
@@ -26,6 +27,7 @@ export default function RootLayout({
       <div>
       </div>
         {children}
+      <Analytics />
       <div className='blur-[150px] bg-accent/70 pointer-events-none absolute -top-40 right-60 w-[300px] h-[300px] rounded-full'></div>
       <div className='blur-[150px] bg-primary/70 pointer-events-none absolute top-40 -left-40 w-[300px] h-[300px] rounded-full'></div>
       <div className='blur-[170px] bg-secondary/70 pointer-events-none absolute bottom-20 right-40 w-[300px] h-[300px] rounded-full'></div>
