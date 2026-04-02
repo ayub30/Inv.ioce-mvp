@@ -79,9 +79,11 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Colors
     type RGB = [number, number, number];
-    const primaryColor: RGB = [0.12, 0.36, 0.72]; // Royal Blue
-    const secondaryColor: RGB = [0.9, 0.9, 0.9]; // Light Gray
-    const textColor: RGB = [0.2, 0.2, 0.2]; // Dark Gray
+    const primaryColor: RGB  = [0.12, 0.36, 0.72];
+    const secondaryColor: RGB = [0.88, 0.88, 0.88];
+    const textColor: RGB     = [0.15, 0.15, 0.15];
+    const labelColor: RGB    = [0.45, 0.45, 0.45];
+    const rowAccent: RGB     = [0.96, 0.97, 0.99];
 
     // Helper functions
     const addText = (text: string, x: number, y: number, options: { 
@@ -159,192 +161,194 @@ export async function POST(request: Request): Promise<NextResponse> {
       });
     };
 
-    // Add header bar
-    drawRect(0, height - 120, width, 120, {
-      fill: primaryColor
+    // ── Layout constants ───────────────────────────────────────────────────
+    const MARGIN      = 50;
+    const HEADER_H    = 84;
+    const INFO_BOX_W  = 215;
+    const INFO_PAD    = 12;   // internal padding (all sides)
+    const LINE_H      = 15;   // detail line spacing
+    const LINE_H_LG   = 18;   // gap after section label / after name
+
+    // ── Header ─────────────────────────────────────────────────────────────
+    drawRect(0, height - HEADER_H, width, HEADER_H, { fill: primaryColor });
+
+    // Invoice type — vertically centred in header
+    addText(type.toUpperCase(), MARGIN, height - 52, {
+      size: 28, font: helveticaBold, color: [1, 1, 1] as RGB
     });
 
-    // Add invoice type and number
-    addText(type.toUpperCase(), 50, height - 70, { 
-      size: 36, 
-      font: helveticaBold,
-      color: [1, 1, 1] as RGB
+    // Date: stacked label + value on right side
+    addText('DATE', width - 200, height - 32, {
+      size: 7, font: helveticaBold,
+      color: [0.62, 0.78, 1.0] as RGB, align: 'right', width: 150
+    });
+    addText(date, width - 200, height - 46, {
+      size: 10, color: [1, 1, 1] as RGB, align: 'right', width: 150
     });
 
-    // Add date
-    addText(`Date: ${date}`, width - 200, height - 70, { 
-      size: 12,
-      color: [1, 1, 1] as RGB,
-      align: 'right',
-      width: 150
+    // ── Info boxes ─────────────────────────────────────────────────────────
+    // Word-wrap helper
+    const wrapAddress = (addr: string, maxWidth: number, fontSize: number, font: typeof helvetica): string[] => {
+      const words = addr.replace(/\r?\n/g, ' ').split(' ').filter(Boolean);
+      const lines: string[] = [];
+      let current = '';
+      for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+      return lines;
+    };
+
+    const addrLines   = wrapAddress(address,   INFO_BOX_W - INFO_PAD * 2, 10, helvetica);
+    const toAddrLines = wrapAddress(toAddress, INFO_BOX_W - INFO_PAD * 2, 10, helvetica);
+
+    // Shared Y anchors — both boxes open at the same boxTop
+    const boxTop  = height - HEADER_H - 20;          // 20px gap below header
+    const labelY  = boxTop  - INFO_PAD - 2;           // section label ("FROM" / "BILL TO")
+    const nameY   = labelY  - LINE_H_LG;              // company / client name
+    const addrY   = nameY   - LINE_H_LG;              // first address line
+
+    // FROM: compute each row's Y to find box bottom
+    const fromAddrLastY  = addrY - (addrLines.length - 1) * LINE_H;
+    const fromPostcodeY  = fromAddrLastY - LINE_H;
+    const fromTelY       = fromPostcodeY - LINE_H;
+    const fromEmailY     = fromTelY      - LINE_H;
+    const fromLastY      = email ? fromEmailY : (telephone ? fromTelY : fromPostcodeY);
+    const fromBoxBottom  = fromLastY - INFO_PAD - 4;
+
+    // BILL TO: same approach
+    const toAddrLastY  = addrY - (toAddrLines.length - 1) * LINE_H;
+    const toCityY      = toAddrLastY  - LINE_H;
+    const toPostcodeY  = toCityY      - LINE_H;
+    const toBoxBottom  = toPostcodeY  - INFO_PAD - 4;
+
+    // Both boxes share the same bottom edge so they're perfectly aligned
+    const infoBoxBottom = Math.min(fromBoxBottom, toBoxBottom);
+    const infoBoxHeight = boxTop - infoBoxBottom;
+
+    const leftBoxX  = MARGIN;
+    const rightBoxX = width - MARGIN - INFO_BOX_W;
+
+    drawRect(leftBoxX,  infoBoxBottom, INFO_BOX_W, infoBoxHeight, {
+      fill: [0.97, 0.98, 1.0] as RGB, stroke: [0.82, 0.88, 0.96] as RGB, strokeWidth: 0.75
+    });
+    drawRect(rightBoxX, infoBoxBottom, INFO_BOX_W, infoBoxHeight, {
+      fill: [0.97, 0.98, 1.0] as RGB, stroke: [0.82, 0.88, 0.96] as RGB, strokeWidth: 0.75
     });
 
-    // Add company info
-    const companyStartY = height - 180;
-    drawRect(40, companyStartY - 100, 200, 120, {
-      fill: [0.97, 0.97, 0.97] as RGB,
-      stroke: secondaryColor,
-      strokeWidth: 1
+    // FROM content
+    const fromX = leftBoxX + INFO_PAD;
+    addText('FROM', fromX, labelY, { font: helveticaBold, size: 8, color: primaryColor });
+    addText(companyName, fromX, nameY, { font: helveticaBold, size: 12 });
+    addrLines.forEach((line, i) => addText(line, fromX, addrY - i * LINE_H));
+    addText(postcode, fromX, fromPostcodeY);
+    if (telephone) addText(telephone, fromX, fromTelY,  { color: labelColor });
+    if (email)     addText(email,     fromX, fromEmailY, { color: labelColor });
+
+    // BILL TO content
+    const toX = rightBoxX + INFO_PAD;
+    addText('BILL TO', toX, labelY, { font: helveticaBold, size: 8, color: primaryColor });
+    addText(toName, toX, nameY, { font: helveticaBold, size: 12 });
+    toAddrLines.forEach((line, i) => addText(line, toX, addrY - i * LINE_H));
+    addText(toCity,     toX, toCityY);
+    addText(toPostcode, toX, toPostcodeY);
+
+    // ── Items table ────────────────────────────────────────────────────────
+    // Thin divider line above table section
+    drawLine(MARGIN, infoBoxBottom - 20, width - MARGIN, infoBoxBottom - 20, {
+      width: 0.5, color: secondaryColor
     });
 
-    addText('FROM', 50, companyStartY, { 
-      font: helveticaBold, 
-      size: 12,
-      color: primaryColor 
-    });
-    addText(companyName, 50, companyStartY - 25, { size: 14 });
-    addText(address, 50, companyStartY - 45);
-    addText(postcode, 50, companyStartY - 60);
-    if (telephone) addText(`Tel: ${telephone}`, 50, companyStartY - 75);
-    if (email) addText(email, 50, companyStartY - 90);
+    let yPos = infoBoxBottom - 44;
+    // Column layout: [desc, qty, price, total] — widths sum to content width (495)
+    const lineHeight = 28;
+    const startX     = MARGIN;
+    const tableW     = width - MARGIN * 2;
+    const colW       = [255, 60, 100, 80] as const;  // 255+60+100+80 = 495
+    const colX       = [
+      startX,
+      startX + colW[0],
+      startX + colW[0] + colW[1],
+      startX + colW[0] + colW[1] + colW[2],
+    ];
 
-    // Add client info
-    drawRect(width - 240, companyStartY - 100, 200, 120, {
-      fill: [0.97, 0.97, 0.97] as RGB,
-      stroke: secondaryColor,
-      strokeWidth: 1
-    });
+    // Table header bar
+    drawRect(startX - 10, yPos - 16, tableW + 20, 36, { fill: primaryColor });
 
-    addText('BILL TO', width - 230, companyStartY, { 
-      font: helveticaBold, 
-      size: 12,
-      color: primaryColor 
-    });
-    addText(toName, width - 230, companyStartY - 25, { size: 14 });
-    addText(toAddress, width - 230, companyStartY - 45);
-    addText(toCity, width - 230, companyStartY - 60);
-    addText(toPostcode, width - 230, companyStartY - 75);
+    const quantityLabel = billingMode === 'hourly' ? 'Hours' : 'Qty';
+    const priceLabel    = billingMode === 'hourly' ? 'Rate'  : 'Price';
 
-    // Add items table
-    let yPos = height - 350;
-    const lineHeight = 30;
-    const colWidth = [300, 75, 85, 85];
-    const startX = 50;
+    addText('Description', colX[0], yPos, { font: helveticaBold, color: [1,1,1] as RGB, size: 11 });
+    addText(quantityLabel, colX[1], yPos, { font: helveticaBold, color: [1,1,1] as RGB, size: 11, align: 'right', width: colW[1] - 8 });
+    addText(priceLabel,    colX[2], yPos, { font: helveticaBold, color: [1,1,1] as RGB, size: 11, align: 'right', width: colW[2] - 8 });
+    addText('Total',       colX[3], yPos, { font: helveticaBold, color: [1,1,1] as RGB, size: 11, align: 'right', width: colW[3] - 4 });
 
-    // Table header
-    drawRect(startX - 10, yPos - 15, width - 80, 40, {
-      fill: primaryColor
-    });
-
-    // Table headers - adjust based on billing mode
-    addText('Description', startX, yPos, { 
-      font: helveticaBold,
-      color: [1, 1, 1] as RGB,
-      size: 12
-    });
-    
-    // Use Hours or Quantity based on billing mode
-    const quantityLabel = billingMode === 'hourly' ? 'Hours' : 'Quantity';
-    addText(quantityLabel, startX + colWidth[0], yPos, { 
-      font: helveticaBold,
-      color: [1, 1, 1] as RGB,
-      size: 12
-    });
-    
-    // Use Hourly Rate or Unit Price based on billing mode
-    const priceLabel = billingMode === 'hourly' ? 'Hourly Rate' : 'Unit Price';
-    addText(priceLabel, startX + colWidth[0] + colWidth[1], yPos, { 
-      font: helveticaBold,
-      color: [1, 1, 1] as RGB,
-      size: 12
-    });
-    
-    addText('Total', startX + colWidth[0] + colWidth[1] + colWidth[2], yPos, { 
-      font: helveticaBold,
-      color: [1, 1, 1] as RGB,
-      size: 12
-    });
-    
     yPos -= lineHeight;
 
-    // Table items with alternating backgrounds
+    // Table rows with alternating backgrounds
     items.forEach((item: InvoiceItem, index: number) => {
       if (index % 2 === 0) {
-        drawRect(startX - 10, yPos - 15, width - 80, lineHeight, {
-          fill: [0.97, 0.97, 0.97] as RGB
-        });
+        drawRect(startX - 10, yPos - 16, tableW + 20, lineHeight, { fill: rowAccent });
       }
 
-      // Item description
-      addText(item.description, startX, yPos);
-      
-      // Quantity or Hours based on billing mode
-      addText(item.quantity.toString(), startX + colWidth[0], yPos);
-      
-      // Unit Price or Hourly Rate based on billing mode
-      const priceLabel = `${currency}${item.unitPrice.toFixed(2)}`;
-      addText(priceLabel, startX + colWidth[0] + colWidth[1], yPos);
-      
-      // Total remains the same
-      addText(`${currency}${item.total.toFixed(2)}`, startX + colWidth[0] + colWidth[1] + colWidth[2], yPos);
-      
+      addText(item.description, colX[0], yPos, { size: 10 });
+      addText(item.quantity.toString(),             colX[1], yPos, { size: 10, align: 'right', width: colW[1] - 8 });
+      addText(`${currency}${item.unitPrice.toFixed(2)}`, colX[2], yPos, { size: 10, align: 'right', width: colW[2] - 8 });
+      addText(`${currency}${item.total.toFixed(2)}`,     colX[3], yPos, { size: 10, align: 'right', width: colW[3] - 4 });
+
       yPos -= lineHeight;
     });
 
-    // Add totals section
-    yPos -= 20;
-    const totalsX = width - 230;
-    const totalsWidth = 200;
-    
-    // Draw totals box with gradient effect
-    drawRect(totalsX - 10, yPos - 100, totalsWidth, 120, {
-      fill: [0.97, 0.97, 0.97] as RGB,
-      stroke: primaryColor,
-      strokeWidth: 1
+    // ── Totals section ─────────────────────────────────────────────────────
+    yPos -= 16;
+
+    const totalsBoxW   = INFO_BOX_W;                      // matches info box width (215)
+    const totalsBoxX   = width - MARGIN - totalsBoxW;     // right-aligned to margin
+    const totalsTextX  = totalsBoxX + INFO_PAD;           // left-aligned text inside box
+    const amtW         = totalsBoxW - INFO_PAD * 2;       // width for right-aligning amounts
+    const ROW_H        = 24;
+    const TOTAL_BAR_H  = 34;
+
+    // Box spans from INFO_PAD above first row down to 6px below the total bar rect
+    // Bar rect y = yPos - rowCount*ROW_H - 14 - 10, so box bottom = that - 6
+    const rowCount        = 1 + (tax > 0 ? 1 : 0) + (discount > 0 ? 1 : 0);
+    const totalsBoxHeight = INFO_PAD + rowCount * ROW_H + 30;
+    const totalsBoxBottom = yPos - totalsBoxHeight + INFO_PAD;
+
+    drawRect(totalsBoxX, totalsBoxBottom, totalsBoxW, totalsBoxHeight, {
+      fill: [0.97, 0.98, 1.0] as RGB, stroke: [0.82, 0.88, 0.96] as RGB, strokeWidth: 0.75
     });
 
-    // Subtotal
-    addText('Subtotal:', totalsX, yPos, { 
-      font: helveticaBold,
-      size: 12
-    });
-    addText(`${currency}${subtotal.toFixed(2)}`, totalsX + totalsWidth - 80, yPos, {
-      align: 'right',
-      width: 50
-    });
-    
-    // Tax
+    // Subtotal row
+    addText('Subtotal', totalsTextX, yPos, { size: 10, color: labelColor });
+    addText(`${currency}${subtotal.toFixed(2)}`, totalsTextX, yPos, { size: 10, align: 'right', width: amtW });
+
+    // Tax row
     if (tax > 0) {
-      yPos -= 25;
-      addText(`Tax (${tax}%):`, totalsX, yPos, { 
-        font: helveticaBold,
-        size: 12
-      });
-      addText(`${currency}${taxAmount.toFixed(2)}`, totalsX + totalsWidth - 80, yPos, {
-        align: 'right',
-        width: 50
-      });
+      yPos -= ROW_H;
+      addText(`Tax (${tax}%)`, totalsTextX, yPos, { size: 10, color: labelColor });
+      addText(`${currency}${taxAmount.toFixed(2)}`, totalsTextX, yPos, { size: 10, align: 'right', width: amtW });
     }
-    
-    // Discount
+
+    // Discount row
     if (discount > 0) {
-      yPos -= 25;
-      addText(`Discount (${discount}%):`, totalsX, yPos, { 
-        font: helveticaBold,
-        size: 12
-      });
-      addText(`${currency}${discountAmount.toFixed(2)}`, totalsX + totalsWidth - 80, yPos, {
-        align: 'right',
-        width: 50
-      });
+      yPos -= ROW_H;
+      addText(`Discount (${discount}%)`, totalsTextX, yPos, { size: 10, color: labelColor });
+      addText(`-${currency}${discountAmount.toFixed(2)}`, totalsTextX, yPos, { size: 10, align: 'right', width: amtW });
     }
-    
-    // Total
-    yPos -= 40;
-    drawRect(totalsX - 10, yPos - 10, totalsWidth, 35, {
-      fill: primaryColor
-    });
-    addText('TOTAL:', totalsX, yPos, { 
-      font: helveticaBold,
-      size: 14,
-      color: [1, 1, 1] as RGB
-    });
-    addText(`${currency}${total.toFixed(2)}`, totalsX + totalsWidth - 80, yPos, { 
-      font: helveticaBold,
-      size: 14,
-      color: [1, 1, 1] as RGB,
-      align: 'right',
-      width: 50
+
+    // Total bar
+    yPos -= (ROW_H + 14);
+    drawRect(totalsBoxX, yPos - 10, totalsBoxW, TOTAL_BAR_H, { fill: primaryColor });
+    addText('TOTAL', totalsTextX, yPos, { font: helveticaBold, size: 12, color: [1,1,1] as RGB });
+    addText(`${currency}${total.toFixed(2)}`, totalsTextX, yPos, {
+      font: helveticaBold, size: 12, color: [1,1,1] as RGB, align: 'right', width: amtW
     });
 
     // Add additional information

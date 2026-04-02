@@ -339,13 +339,13 @@ export default function Form() {
               onChange={handleInputChange}
               className="input input-bordered w-full text-base-content"
             />
-            <input
-              type="text"
+            <textarea
               name="address"
               placeholder="Address"
               value={formData.address}
               onChange={handleInputChange}
-              className="input input-bordered w-full text-base-content"
+              rows={2}
+              className="textarea textarea-bordered w-full text-base-content resize-none"
             />
             <input
               type="text"
@@ -384,13 +384,13 @@ export default function Form() {
               onChange={handleInputChange}
               className="input input-bordered w-full text-base-content"
             />
-            <input
-              type="text"
+            <textarea
               name="toAddress"
               placeholder="Address"
               value={formData.toAddress}
               onChange={handleInputChange}
-              className="input input-bordered w-full text-base-content"
+              rows={2}
+              className="textarea textarea-bordered w-full text-base-content resize-none"
             />
             <input
               type="text"
